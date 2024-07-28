@@ -1,0 +1,9 @@
+.idea/
+*.pyc
+__pycache__/
+*.json
+!deploy/luminati_config.json
+*.log*
+_test*
+
+.env
