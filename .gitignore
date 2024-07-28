@@ -6,5 +6,5 @@ __pycache__/
 *.log*
 _test*
 
-.env
-.db
+*.env
+*.db
