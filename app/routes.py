@@ -1,3 +1,5 @@
+import base64
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,6 +8,7 @@ from app.models import User, Card
 import os
 
 from app.querys import get_card_by_number
+from app.utils import decrypt_data, encrypt_data
 from logging_config import setup_logging
 
 bp = Blueprint('routes', __name__)
@@ -53,7 +56,8 @@ def add_card():
         data = request.get_json()
         logger.debug(f"dados da requisicao de adicionar cartao {data}")
         aes_key = os.environ.get('AES_KEY').encode()
-        number = data['number']
+        encrypted_number = base64.b64decode(data['number'])
+        number = decrypt_data(encrypted_number)
 
         if not isinstance(number, str) or not number.strip():
             logger.error("Numero de cartao invalido")
@@ -126,17 +130,22 @@ def upload_cards():
         logger.exception("Excecao nao mapeada ao tentar adicionar cartoes via arquivo")
 
 
-@bp.route('/cards/<number>', methods=['GET'])
+@bp.route('/get_card', methods=['GET'])
 @jwt_required()
-def get_card(number):
+def get_card():
     try:
+        data = request.get_json()
+        encrypted_number = base64.b64decode(data['number'])
+        number = decrypt_data(encrypted_number)
         logger.info(f"Buscando cartao {number}")
         aes_key = os.environ.get('AES_KEY').encode()
         card = get_card_by_number(aes_key, number)
 
         if card:
             logger.info(f'Cartao encontrado: {number}')
-            return jsonify({"card_id": card.id, "card_number": number}), 200
+            encrypted_number = encrypt_data(number)
+            encrypted_number = base64.b64encode(encrypted_number).decode()
+            return jsonify({"card_id": card.id, "card_number": encrypted_number}), 200
         else:
             logger.warning(f'Cartao nao encontrado: {number}')
             return jsonify({"message": "Card not found"}), 404
