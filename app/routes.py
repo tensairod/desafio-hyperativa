@@ -52,20 +52,19 @@ def add_card():
     try:
         data = request.get_json()
         logger.debug(f"dados da requisicao de adicionar cartao {data}")
-        fernet_key = os.environ.get('FERNET_KEY')
+        aes_key = os.environ.get('AES_KEY').encode()
         number = data['number']
 
-        # Verificar se o número do cartão é uma string e não está vazio
         if not isinstance(number, str) or not number.strip():
             logger.error("Numero de cartao invalido")
             return jsonify({"message": "Invalid card number"}), 400
 
-        existing_card = get_card_by_number(fernet_key.encode(), number)
+        existing_card = get_card_by_number(aes_key, number)
         if existing_card:
             logger.warning(f'Ja existe um cartao com esse numero: {number}')
             return jsonify({"message": "Card already exists"}), 400
 
-        new_card = Card(number=number, fernet_key=fernet_key.encode())
+        new_card = Card(number=number, aes_key=aes_key)
         logger.info("Cartao criado, enviando para o banco de dados")
         db.session.add(new_card)
         db.session.commit()
@@ -81,46 +80,40 @@ def upload_cards():
     try:
         file = request.files.get('file')
 
-        # Verifica se o arquivo foi enviado
         if file is None:
             logger.error("Nenhum arquivo foi upado")
             return jsonify({"message": "No file uploaded"}), 400
 
         logger.info(f"Lendo o arquivo {file.filename}...")
 
-        # Verifica o nome do arquivo e a extensão
         if not file.filename.endswith('.txt'):
             logger.error("Tipo de arquivo nao é suportado")
             return jsonify({"message": "Unsupported file type"}), 400
 
-        fernet_key = os.environ.get('FERNET_KEY')
+        aes_key = os.environ.get('AES_KEY')
         try:
-            # Lê o conteúdo do arquivo como bytes
             file_content = file.stream.read().decode('utf-8')
         except Exception:  # noqa
             logger.exception("Excecao nao mapeada ao tentar ler arquivo")
             return jsonify({"message": f"Error reading file"}), 500
 
-        # Processa o conteúdo do arquivo
         lines = file_content.splitlines()
         logger.info("Passando linha por linha...")
         for line in lines:
             line = line.strip()
 
-            # Verifica se a linha é uma linha de dados (começa com C)
             if line.startswith('C'):
                 logger.info("Linha com numeros encontrada, extraindo numero do cartao...")
-                # Extrai o número do cartão (posição 8-26)
-                card_number = line[7:23].strip()  # Corrige a indexação e remove espaços
+                card_number = line[7:23].strip()
 
                 logger.info(f"Numero encontrado: {card_number}")
 
                 if len(card_number) != 16:
                     logger.info(f"Numero de cartao nao esta no padrao correto: {card_number}")
                     continue
-                existing_card = get_card_by_number(fernet_key, card_number)
+                existing_card = get_card_by_number(aes_key, card_number)
                 if existing_card is None:
-                    new_card = Card(number=card_number, fernet_key=fernet_key)
+                    new_card = Card(number=card_number, aes_key=aes_key)
                     db.session.add(new_card)
                     logger.info("Cartao adicionado!")
                 else:
@@ -138,11 +131,12 @@ def upload_cards():
 def get_card(number):
     try:
         logger.info(f"Buscando cartao {number}")
-        card = Card.query.filter_by(number=number).first()
+        aes_key = os.environ.get('AES_KEY').encode()
+        card = get_card_by_number(aes_key, number)
 
         if card:
             logger.info(f'Cartao encontrado: {number}')
-            return jsonify({"card_id": card.id, "card_number": card.number}), 200
+            return jsonify({"card_id": card.id, "card_number": number}), 200
         else:
             logger.warning(f'Cartao nao encontrado: {number}')
             return jsonify({"message": "Card not found"}), 404

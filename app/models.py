@@ -1,5 +1,9 @@
+import base64
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad, pad
+
 from . import db
-from cryptography.fernet import Fernet
 
 
 class User(db.Model):
@@ -10,12 +14,19 @@ class User(db.Model):
 
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    _number = db.Column(db.LargeBinary, unique=True, nullable=False)  # Alterado para LargeBinary
+    _number = db.Column(db.LargeBinary, unique=True, nullable=False)
 
-    def __init__(self, number, fernet_key):
-        fernet = Fernet(fernet_key)
-        self._number = fernet.encrypt(number.encode())  # Criptografar e armazenar como bytes
+    def __init__(self, number, aes_key):
+        aes_key = base64.b64decode(aes_key)
+        cipher = AES.new(aes_key, AES.MODE_CBC, iv=b'\x00' * AES.block_size)
+        ct_bytes = cipher.encrypt(pad(number.encode(), AES.block_size))
+        iv = cipher.iv
+        self._number = iv + ct_bytes
 
-    def get_number(self, fernet_key):
-        fernet = Fernet(fernet_key)
-        return fernet.decrypt(self._number).decode()  # Descriptografar e retornar como string
+    def get_number(self, aes_key):
+        aes_key = base64.b64decode(aes_key)
+        iv = self._number[:AES.block_size]
+        ct = self._number[AES.block_size:]
+        cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+        decrypted_data = unpad(cipher.decrypt(ct), AES.block_size)
+        return decrypted_data.decode()

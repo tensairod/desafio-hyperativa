@@ -1,8 +1,8 @@
-"""Update Card model to store encrypted number
+"""update card
 
-Revision ID: 8129a163dbe0
+Revision ID: 3a3a3b2679d9
 Revises: 
-Create Date: 2024-07-28 16:53:50.003452
+Create Date: 2024-07-28 22:18:19.759721
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '8129a163dbe0'
+revision = '3a3a3b2679d9'
 down_revision = None
 branch_labels = None
 depends_on = None
